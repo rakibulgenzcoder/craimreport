@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bangladesh Crime Watch - Justice and Transparency</title>
+  <style>
+    :root {
+      --protest-red: #e74c3c;
+      --protest-black: #2c3e50;
+      --protest-white: #ecf0f1;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: var(--protest-black);
+      color: var(--protest-white);
+      font-family: 'Arial', sans-serif;
+      overflow-x: hidden;
+    }
+    .protest-banner {
+      background: var(--protest-red);
+      padding: 2rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    .protest-marquee {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(0,0,0,0.7);
+      padding: 0.5rem;
+      color: var(--protest-white);
+      font-size: 0.9rem;
+      white-space: nowrap;
+      animation: marquee 20s linear infinite;
+    }
+    @keyframes marquee {
+      0% { transform: translateX(100%); }
+      100% { transform: translateX(-100%); }
+    }
+    /* নির্দিষ্ট width নির্ধারণ করা হলো যাতে চার্টের আকার ফিক্সড থাকে */
+    .chart-section {
+      width: 1000px;
+      margin: 3rem auto;
+      padding: 2rem;
+      background: rgba(255,255,255,0.05);
+      border-radius: 10px;
+      position: relative;
+    }
+    .crime-selector {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .crime-button {
+      padding: 0.5rem 1rem;
+      border: 2px solid var(--protest-red);
+      background: transparent;
+      color: var(--protest-white);
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .crime-button.active {
+      background: var(--protest-red);
+    }
+    .protest-graphic {
+      position: fixed;
+      opacity: 0.1;
+      pointer-events: none;
+      animation: protestFloat 15s linear infinite;
+    }
+    @keyframes protestFloat {
+      0% { transform: translateY(100vh) rotate(0deg); }
+      100% { transform: translateY(-100vh) rotate(360deg); }
+    }
+  </style>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="protest-banner">
+    <h1>✊ STOP CRIME & DEMAND ACCOUNTABILITY ✊</h1>
+    <div class="protest-marquee">
+      DEMANDING JUSTICE • END POLICE BRUTALITY • STOP POLITICAL CORRUPTION • JUSTICE FOR VICTIMS • BREAK THE SILENCE •
+    </div>
+  </div>
+
+  <div class="chart-section">
+    <div class="crime-selector" id="crimeSelector"></div>
+    <canvas id="crimeChart" style="height: 400px;"></canvas>
+  </div>
+
+  <!-- Protest graphics -->
+  <div class="protest-graphic" style="left: 10%;">⚖</div>
+  <div class="protest-graphic" style="left: 30%;">✊</div>
+  <div class="protest-graphic" style="left: 70%;">✘</div>
+
+  <script>
+    // JSON ডেটা (আপনার দেওয়া তথ্য)
+    const crimeData = {
+      "2023": {
+        "August":    { "murder": 142, "rape": 237, "theft": 1543, "abduction": 89, "other": 645 },
+        "September": { "murder": 135, "rape": 221, "theft": 1489, "abduction": 78, "other": 612 },
+        "October":   { "murder": 148, "rape": 245, "theft": 1620, "abduction": 94, "other": 689 },
+        "November":  { "murder": 156, "rape": 263, "theft": 1702, "abduction": 102, "other": 734 },
+        "December":  { "murder": 162, "rape": 278, "theft": 1815, "abduction": 115, "other": 802 },
+        "January":   { "murder": 170, "rape": 291, "theft": 1920, "abduction": 127, "other": 865 }
+      },
+      "2024": {
+        "August":    { "murder": 158, "rape": 255, "theft": 1689, "abduction": 97, "other": 702 },
+        "September": { "murder": 165, "rape": 272, "theft": 1754, "abduction": 105, "other": 745 },
+        "October":   { "murder": 172, "rape": 289, "theft": 1843, "abduction": 114, "other": 798 },
+        "November":  { "murder": 180, "rape": 305, "theft": 1932, "abduction": 123, "other": 854 },
+        "December":  { "murder": 190, "rape": 320, "theft": 2045, "abduction": 135, "other": 912 },
+        "January":   { "murder": 201, "rape": 338, "theft": 2150, "abduction": 148, "other": 978 }
+      }
+    };
+
+    // CSS ভেরিয়েবল '--protest-white' থেকে মান নেওয়া
+    const protestWhite = getComputedStyle(document.documentElement)
+                          .getPropertyValue('--protest-white').trim();
+
+    // অপরাধের ধরন নির্বাচন: 'total' মানে সব অপরাধের যোগফল
+    const crimeTypes = ['total', 'murder', 'rape', 'theft', 'abduction', 'other'];
+    let activeCrimeType = 'total';
+
+    // ক্রাইম সিলেক্টরের বাটন তৈরি
+    const selector = document.getElementById('crimeSelector');
+    crimeTypes.forEach(type => {
+      const button = document.createElement('button');
+      button.className = 'crime-button';
+      button.textContent = type.toUpperCase();
+      if (type === activeCrimeType) button.classList.add('active');
+      button.addEventListener('click', () => {
+        document.querySelector('.crime-button.active')?.classList.remove('active');
+        button.classList.add('active');
+        activeCrimeType = type;
+        updateChart();
+      });
+      selector.appendChild(button);
+    });
+
+    const ctx = document.getElementById('crimeChart').getContext('2d');
+
+    // চার্টের ডেটা প্রস্তুতির ফাংশন
+    function getChartData(type) {
+      return {
+        labels: Object.keys(crimeData["2023"]),
+        datasets: [
+          {
+            label: `2023 ${type.toUpperCase()}`,
+            data: Object.values(crimeData["2023"]).map(m => {
+              return type === "total"
+                ? Object.values(m).reduce((a, b) => a + b, 0)
+                : m[type];
+            }),
+            borderColor: "#e74c3c",
+            tension: 0.4,
+            borderWidth: 2
+          },
+          {
+            label: `2024 ${type.toUpperCase()}`,
+            data: Object.values(crimeData["2024"]).map(m => {
+              return type === "total"
+                ? Object.values(m).reduce((a, b) => a + b, 0)
+                : m[type];
+            }),
+            borderColor: "#3498db",
+            tension: 0.4,
+            borderWidth: 2
+          }
+        ]
+      };
+    }
+
+    // Chart.js চার্ট ইনিশিয়ালাইজ করা (responsive বন্ধ করে, fixed container width ব্যবহার করা হয়েছে)
+    const chart = new Chart(ctx, {
+      type: "line",
+      data: getChartData(activeCrimeType),
+      options: {
+        responsive: false,
+        maintainAspectRatio: false,
+        plugins: {
+          title: {
+            display: true,
+            text: "CRIME TRENDS IN BANGLADESH - 6 MONTH COMPARISON",
+            color: protestWhite,
+            font: { size: 18 }
+          },
+          legend: {
+            labels: { color: protestWhite }
+          }
+        },
+        interaction: {
+          mode: "nearest",
+          axis: "x",
+          intersect: false
+        },
+        scales: {
+          y: {
+            ticks: { color: protestWhite },
+            title: { 
+              text: "Number of Reported Cases",
+              color: protestWhite,
+              display: true
+            },
+            beginAtZero: true
+          },
+          x: {
+            ticks: { color: protestWhite },
+            title: { 
+              text: "Months",
+              color: protestWhite,
+              display: true
+            }
+          }
+        }
+      }
+    });
+
+    function updateChart() {
+      chart.data = getChartData(activeCrimeType);
+      chart.update();
+    }
+  </script>
+</body>
+</html>
